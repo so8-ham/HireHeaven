@@ -11,6 +11,9 @@ import { Card } from "@/components/ui/card";
 import { CheckCircle, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const RAZORPAY_KEY =
+  process.env.NEXT_PUBLIC_RAZORPAY_KEY || "rzp_test_RaL8PDo9YBejEW";
+
 const SubscriptionPage = () => {
   const razorpayLoaded = useRazorpay();
 
@@ -22,57 +25,105 @@ const SubscriptionPage = () => {
 
   const handleSubscribe = async () => {
     const token = Cookies.get("token");
+
+    if (!token) {
+      toast.error("Please login first");
+      router.push("/login");
+      return;
+    }
+
     setLoading(true);
-    const {
-      data: { order },
-    } = await axios.post(
-      `${payment_service}/api/payment/checkout`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
 
-    const options = {
-      key: "rzp_test_RaL8PDo9YBejEW", // Replace with your Razorpay key_id
-      amount: order.id, // Amount is in currency subunits. Default currency is INR. Hence, 50000 refers to 50000 paise
-      currency: "INR",
-      name: "Hire Heaven",
-      description: "Find job easily",
-      order_id: order.id, // This is the order_id created in the backend
-      handler: async function (response: any) {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-          response;
-
-        try {
-          const { data } = await axios.post(
-            `${payment_service}/api/payment/verify`,
-            { razorpay_order_id, razorpay_payment_id, razorpay_signature },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-
-          toast.success(data.message);
-          setUser(data.updatedUser);
-          router.push(`/payment/success/${razorpay_payment_id}`);
-          setLoading(false);
-        } catch (error: any) {
-          setLoading(false);
-          toast.error(error.response.data.message);
+    try {
+      const { data } = await axios.post(
+        `${payment_service}/api/payment/checkout`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      },
-      theme: {
-        color: "#F37254",
-      },
-    };
-    if (!razorpayLoaded) console.log("some thing went wrong with script");
-    const razorpay = new window.Razorpay(options);
-    razorpay.open();
+      );
+
+      const { order, devMode } = data;
+
+      if (devMode) {
+        const { data: verifyData } = await axios.post(
+          `${payment_service}/api/payment/verify`,
+          {
+            razorpay_order_id: order.id,
+            razorpay_payment_id: `pay_dev_${Date.now()}`,
+            razorpay_signature: "dev_mode",
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        toast.success(verifyData.message);
+        setUser(verifyData.updatedUser);
+        router.push(`/payment/success/${order.id}`);
+        return;
+      }
+
+      const options = {
+        key: RAZORPAY_KEY,
+        amount: order.amount,
+        currency: order.currency || "INR",
+        name: "Hire Heaven",
+        description: "Find job easily",
+        order_id: order.id,
+        handler: async function (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) {
+          const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+            response;
+
+          try {
+            const { data: verifyData } = await axios.post(
+              `${payment_service}/api/payment/verify`,
+              { razorpay_order_id, razorpay_payment_id, razorpay_signature },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+
+            toast.success(verifyData.message);
+            setUser(verifyData.updatedUser);
+            router.push(`/payment/success/${razorpay_payment_id}`);
+          } catch (error: unknown) {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(
+              err.response?.data?.message || "Payment verification failed"
+            );
+          } finally {
+            setLoading(false);
+          }
+        },
+        theme: {
+          color: "#F37254",
+        },
+      };
+
+      if (!razorpayLoaded) {
+        toast.error("Razorpay failed to load. Please refresh the page.");
+        return;
+      }
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || "Checkout failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) return <Loading />;

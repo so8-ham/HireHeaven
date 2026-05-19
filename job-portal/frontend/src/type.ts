@@ -49,6 +49,10 @@ export interface ResumeAnalysisResponse {
   suggestions: Suggestion[];
   strengths: string[];
   summary: string;
+  devMode?: boolean;
+  quotaExceeded?: boolean;
+  localAnalysis?: boolean;
+  notice?: string;
 }
 
 export interface User {

@@ -46,15 +46,29 @@ export const registerUser = TryCatch(async (req, res, next) => {
       throw new ErrorHandler(500, "Failed to generate buffer");
     }
 
-    const { data } = await axios.post(
-      `${process.env.UPLOAD_SERVICE}/api/utils/upload`,
-      { buffer: fileBuffer.content }
-    );
+    let data;
+    try {
+      ({ data } = await axios.post(
+        `${process.env.UPLOAD_SERVICE}/api/utils/upload`,
+        { buffer: fileBuffer.content }
+      ));
+    } catch (error: any) {
+      const message =
+        error.response?.data?.message ||
+        "Resume upload failed. Check utils service and Cloudinary settings.";
+      throw new ErrorHandler(500, message);
+    }
     const [user] =
       await sql`INSERT INTO users (name, email, password, phone_number, role, bio, resume, resume_public_id) VALUES 
                (${name}, ${email}, ${hashPassword}, ${phoneNumber}, ${role}, ${bio}, ${data.url}, ${data.public_id}) RETURNING user_id, name, email, phone_number, role, bio, resume, created_at`;
 
     registeredUser = user;
+  } else {
+    throw new ErrorHandler(400, "Invalid role. Choose jobseeker or recruiter.");
+  }
+
+  if (!registeredUser) {
+    throw new ErrorHandler(500, "Registration failed. Please try again.");
   }
 
   const token = jwt.sign(
@@ -164,7 +178,9 @@ export const forgotPassword = TryCatch(async (req, res, next) => {
 });
 
 export const resetPassword = TryCatch(async (req, res, next) => {
-  const { token } = req.params;
+  const token = Array.isArray(req.params.token)
+    ? req.params.token[0]
+    : req.params.token;
   const { password } = req.body;
 
   let decoded: any;

@@ -1,22 +1,97 @@
-import express, { json } from "express";
-import cloudinary from "cloudinary";
+import express from "express";
+import { v2 as cloudinary } from "cloudinary";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+import {
+  generateGeminiContent,
+  getGeminiClient,
+  isGeminiConfigured,
+  isGeminiModelNotFoundError,
+  isGeminiQuotaError,
+  parseGeminiError,
+  parseModelJson,
+} from "./utils/gemini.js";
+import {
+  getDevCareerResponse,
+  getDevResumeResponse,
+  getQuotaFallbackResumeResponse,
+} from "./utils/devAiResponses.js";
+import { analyzeResumeFromPdf } from "./utils/localAtsAnalyzer.js";
+
+dotenv.config();
 
 const router = express.Router();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsDir = path.join(__dirname, "../uploads");
+
+const isCloudinaryConfigured = () => {
+  const secret = process.env.API_SECRET?.trim();
+  return Boolean(
+    secret &&
+      !secret.includes("*") &&
+      secret.toLowerCase() !== "your secret"
+  );
+};
+
+const uploadLocally = async (buffer: string) => {
+  const match = buffer.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error("Invalid file buffer format");
+  }
+
+  await fs.promises.mkdir(uploadsDir, { recursive: true });
+
+  const mime = match[1];
+  const ext = mime.includes("pdf")
+    ? ".pdf"
+    : mime.includes("png")
+      ? ".png"
+      : mime.includes("jpeg") || mime.includes("jpg")
+        ? ".jpg"
+        : ".bin";
+  const fileName = `${Date.now()}${ext}`;
+  const filePath = path.join(uploadsDir, fileName);
+
+  await fs.promises.writeFile(filePath, Buffer.from(match[2], "base64"));
+
+  return {
+    url: `http://localhost:${process.env.PORT}/uploads/${fileName}`,
+    public_id: fileName,
+  };
+};
 
 router.post("/upload", async (req, res) => {
   try {
     const { buffer, public_id } = req.body;
 
-    if (public_id) {
-      await cloudinary.v2.uploader.destroy(public_id);
+    if (!buffer) {
+      return res.status(400).json({ message: "buffer is required" });
     }
 
-    const cloud = await cloudinary.v2.uploader.upload(buffer);
+    if (isCloudinaryConfigured()) {
+      try {
+        if (public_id) {
+          await cloudinary.uploader.destroy(public_id);
+        }
 
-    res.json({
-      url: cloud.secure_url,
-      public_id: cloud.public_id,
-    });
+        const cloud = await cloudinary.uploader.upload(buffer);
+
+        return res.json({
+          url: cloud.secure_url,
+          public_id: cloud.public_id,
+        });
+      } catch (error: any) {
+        console.warn(
+          "Cloudinary upload failed, using local storage:",
+          error.message
+        );
+      }
+    }
+
+    const local = await uploadLocally(buffer);
+    res.json(local);
   } catch (error: any) {
     res.status(500).json({
       message: error.message,
@@ -24,25 +99,33 @@ router.post("/upload", async (req, res) => {
   }
 });
 
-import { GoogleGenAI } from "@google/genai";
-import dotenv from "dotenv";
-
-dotenv.config();
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY_GEMINI });
-
 router.post("/career", async (req, res) => {
-  try {
-    const { skills } = req.body;
+  const { skills } = req.body;
 
-    if (!skills) {
-      return res.status(400).json({
-        message: "Skills Required",
+  if (!skills || (Array.isArray(skills) && skills.length === 0)) {
+    return res.status(400).json({
+      message: "Skills Required",
+    });
+  }
+
+  const skillList = Array.isArray(skills) ? skills : [skills];
+
+  try {
+
+    if (!isGeminiConfigured()) {
+      return res.json(getDevCareerResponse(skillList));
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      return res.status(503).json({
+        message:
+          "Gemini API key is not configured. Set API_KEY_GEMINI in services/utils/.env",
       });
     }
 
     const prompt = ` 
-Based on the following skills: ${skills}. 
+Based on the following skills: ${skillList.join(", ")}. 
  
 Please act as a career advisor and generate a career path suggestion. 
 Your entire response must be in a valid JSON format. Do not include any text or markdown 
@@ -79,45 +162,53 @@ Mastery', 'DevOps & Cloud').",
 } 
  `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-
-    let jsonResponse;
+    const response = await generateGeminiContent(ai, { contents: prompt });
 
     try {
-      const rawText = response.text
-        ?.replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-      if (!rawText) {
-        throw new Error("Ai did not return a valid text response.");
-      }
-
-      jsonResponse = JSON.parse(rawText);
+      const jsonResponse = parseModelJson(response.text);
+      res.json(jsonResponse);
     } catch (error) {
       return res.status(500).json({
-        message: "Ai returned response that was not valid JSON",
+        message: "AI returned a response that was not valid JSON",
         rawResponse: response.text,
       });
     }
-
-    res.json(jsonResponse);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (isGeminiQuotaError(error) || isGeminiModelNotFoundError(error)) {
+      return res.json(getDevCareerResponse(skillList));
+    }
     res.status(500).json({
-      message: error.message,
+      message: parseGeminiError(error),
     });
   }
 });
 
 router.post("/resume-analyser", async (req, res) => {
-  try {
-    const { pdfBase64 } = req.body;
+  const { pdfBase64 } = req.body;
 
-    if (!pdfBase64) {
-      return res.status(400).json({ message: "PDF data is required" });
+  if (!pdfBase64) {
+    return res.status(400).json({ message: "PDF data is required" });
+  }
+
+  if (
+    process.env.ATS_USE_LOCAL === "true" ||
+    !isGeminiConfigured()
+  ) {
+    try {
+      return res.json(await analyzeResumeFromPdf(pdfBase64));
+    } catch {
+      return res.json(getDevResumeResponse());
+    }
+  }
+
+  try {
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      return res.status(503).json({
+        message:
+          "Gemini API key is not configured. Set API_KEY_GEMINI in services/utils/.env",
+      });
     }
 
     const prompt = ` 
@@ -168,19 +259,18 @@ The JSON object should have the following structure:
 Focus on: - File format and structure compatibility - Proper use of standard section headings - Keyword optimization - Formatting issues (tables, columns, graphics, special characters) - Contact information placement - Date formatting - Use of action verbs and quantifiable achievements - Section organization and flow 
 `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const pdfData = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+
+    const response = await generateGeminiContent(ai, {
       contents: [
         {
           role: "user",
           parts: [
-            {
-              text: prompt,
-            },
+            { text: prompt },
             {
               inlineData: {
                 mimeType: "application/pdf",
-                data: pdfBase64.replace(/^data:application\/pdf;base64,/, ""),
+                data: pdfData,
               },
             },
           ],
@@ -188,30 +278,27 @@ Focus on: - File format and structure compatibility - Proper use of standard sec
       ],
     });
 
-    let jsonResponse;
-
     try {
-      const rawText = response.text
-        ?.replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-      if (!rawText) {
-        throw new Error("Ai did not return a valid text response.");
-      }
-
-      jsonResponse = JSON.parse(rawText);
+      const jsonResponse = parseModelJson(response.text);
+      res.json(jsonResponse);
     } catch (error) {
       return res.status(500).json({
-        message: "Ai returned response that was not valid JSON",
+        message: "AI returned a response that was not valid JSON",
         rawResponse: response.text,
       });
     }
-
-    res.json(jsonResponse);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (isGeminiQuotaError(error) || isGeminiModelNotFoundError(error)) {
+      try {
+        const localReport = await analyzeResumeFromPdf(pdfBase64);
+        return res.json(localReport);
+      } catch (localError) {
+        console.warn("Local ATS fallback failed:", localError);
+        return res.json(getQuotaFallbackResumeResponse());
+      }
+    }
     res.status(500).json({
-      message: error.message,
+      message: parseGeminiError(error),
     });
   }
 });

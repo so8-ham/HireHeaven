@@ -73,10 +73,26 @@ const ResumeAnalyzer = () => {
         }
       );
       setResponse(data);
-      toast.success("Resume analyzed successfully!");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to analyze resume");
-      console.log(error);
+      if (data.localAnalysis) {
+        toast.success("Resume analyzed from your PDF (local ATS scan)");
+      } else if (data.quotaExceeded || data.devMode) {
+        toast(
+          data.notice ||
+            "Sample ATS feedback shown. Configure Gemini for full AI analysis.",
+          { icon: "⚠️", duration: 6000 }
+        );
+      } else {
+        toast.success("Resume analyzed successfully!");
+      }
+    } catch (error: unknown) {
+      const err = error as {
+        response?: { data?: { message?: string; error?: { message?: string } } };
+      };
+      toast.error(
+        err.response?.data?.message ||
+          err.response?.data?.error?.message ||
+          "Failed to analyze resume"
+      );
     } finally {
       setLoading(false);
     }
@@ -221,6 +237,19 @@ pointer hover:border-blue-500 transition-colors"
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
+                  {response.localAnalysis && response.notice && (
+                    <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-800 text-sm text-blue-900 dark:text-blue-100">
+                      {response.notice}
+                    </div>
+                  )}
+                  {(response.quotaExceeded || response.devMode) &&
+                    !response.localAnalysis && (
+                    <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-100">
+                      {response.notice ||
+                        "Sample ATS feedback — add or upgrade your Gemini API key for full AI analysis."}
+                    </div>
+                  )}
+
                   {/* Overall Score */}
                   <div
                     className={`p-6 rounded-lg ${getScoreBgColor(

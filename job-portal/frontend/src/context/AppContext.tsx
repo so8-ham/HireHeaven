@@ -6,11 +6,28 @@ import toast, { Toaster } from "react-hot-toast";
 import Cookies from "js-cookie";
 import axios from "axios";
 
-export const utils_service = "http://35.154.186.96:5001";
-export const auth_service = "http://35.154.186.96:5000";
-export const user_service = "http://35.154.186.96:5002";
-export const job_service = "http://35.154.186.96:5003";
-export const payment_service = "http://35.154.186.96:5004";
+export const utils_service = "http://localhost:5001";
+export const auth_service = "http://localhost:5000";
+export const user_service = "http://localhost:5002";
+export const job_service = "http://localhost:5003";
+export const payment_service = "http://localhost:5004";
+
+const getErrorMessage = (
+  error: unknown,
+  fallback = "Something went wrong. Please try again."
+): string => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { message?: string } | undefined;
+    if (data?.message) return data.message;
+    if (error.response?.status === 401) return "Please log in again.";
+    if (!error.response) {
+      return "Cannot reach the server. Make sure backend services are running.";
+    }
+    return error.message || fallback;
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
+};
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -55,8 +72,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       toast.success(data.message);
       fetchUser();
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to update profile picture"));
     } finally {
       setLoading(false);
     }
@@ -77,8 +94,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       toast.success(data.message);
       fetchUser();
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to update resume"));
     } finally {
       setLoading(false);
     }
@@ -98,8 +115,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       );
       toast.success(data.message);
       fetchUser();
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to update profile"));
     } finally {
       setBtnLoading(false);
     }
@@ -130,8 +147,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       toast.success(data.message);
       setSkill("");
       fetchUser();
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to add skill"));
     } finally {
       setBtnLoading(false);
     }
@@ -150,8 +167,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       );
       toast.success(data.message);
       fetchUser();
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to remove skill"));
     }
   }
 
@@ -170,8 +187,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       toast.success(data.message);
       fetchApplications();
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "Failed to apply for job"));
     } finally {
       setBtnLoading(false);
     }

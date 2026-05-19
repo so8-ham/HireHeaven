@@ -64,8 +64,15 @@ const CarrerGuide = () => {
 
       setResponse(data);
       toast.success("Carrer guidence generated");
-    } catch (error: any) {
-      toast.error(error.response.data.message);
+    } catch (error: unknown) {
+      const err = error as {
+        response?: { data?: { message?: string; error?: { message?: string } } };
+      };
+      toast.error(
+        err.response?.data?.message ||
+          err.response?.data?.error?.message ||
+          "Failed to generate career guidance"
+      );
     } finally {
       setLoading(false);
     }
