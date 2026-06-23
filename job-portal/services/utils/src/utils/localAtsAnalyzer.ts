@@ -252,10 +252,10 @@ export const analyzeResumeText = (rawText: string): LocalAtsReport => {
     scoreBreakdown,
     suggestions: suggestions.slice(0, 6),
     strengths,
-    summary: `Local ATS scan complete (score ${atsScore}/100). Analysis is based on text extracted from your PDF — Gemini AI was unavailable due to API quota.`,
+    summary: `Local ATS scan complete (score ${atsScore}/100). Analysis is based on text extracted from your PDF — Mistral AI was unavailable due to API quota.`,
     localAnalysis: true,
     notice:
-      "Analyzed locally from your resume PDF. For deeper AI feedback, wait for Gemini quota to reset or enable billing at https://ai.google.dev.",
+      "Analyzed locally from your resume PDF. For deeper AI feedback, wait for Mistral quota to reset or enable billing.",
   };
 };
 

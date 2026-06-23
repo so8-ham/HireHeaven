@@ -11,6 +11,9 @@ dist/
 .env
 *.env
 
+# Uploads and runtime artifacts
+**/uploads/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

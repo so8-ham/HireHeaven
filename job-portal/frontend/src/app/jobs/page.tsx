@@ -107,6 +107,8 @@ const JobsPage = () => {
                   {title}
                   <button
                     onClick={() => setTitle("")}
+                    title="Remove title filter"
+                    aria-label="Remove title filter"
                     className="hover:bg-blue-200 dark:bg-blue-800 rounded-full p-0.5"
                   >
                     <X size={14} />
@@ -120,6 +122,8 @@ const JobsPage = () => {
                   {location}
                   <button
                     onClick={() => setLocation("")}
+                    title="Remove location filter"
+                    aria-label="Remove location filter"
                     className="hover:bg-blue-200 dark:bg-blue-800 rounded-full p-0.5"
                   >
                     <X size={14} />
@@ -153,7 +157,13 @@ const JobsPage = () => {
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button ref={ref} className="hidden"></Button>
+            <Button
+              ref={ref}
+              className="hidden"
+              aria-hidden={true}
+              tabIndex={-1}
+              title="Open filters"
+            ></Button>
           </DialogTrigger>
 
           <DialogContent className="sm:max-w-[500px]">
@@ -193,6 +203,8 @@ const JobsPage = () => {
                 </Label>
                 <select
                   id="location"
+                  aria-label="Location"
+                  title="Location"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   className="w-full h-11 px-3 border-2 border-gray-300 rounded-md bg-transparent focus:outline-none focus:ring2"

@@ -5,14 +5,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import {
-  generateGeminiContent,
-  getGeminiClient,
-  isGeminiConfigured,
-  isGeminiModelNotFoundError,
-  isGeminiQuotaError,
-  parseGeminiError,
+  generateMistralContent,
+  getMistralClient,
+  isMistralConfigured,
+  isMistralModelNotFoundError,
+  isMistralQuotaError,
+  parseMistralError,
   parseModelJson,
-} from "./utils/gemini.js";
+} from "./utils/mistral.js";
 import {
   getDevCareerResponse,
   getDevResumeResponse,
@@ -112,15 +112,15 @@ router.post("/career", async (req, res) => {
 
   try {
 
-    if (!isGeminiConfigured()) {
+    if (!isMistralConfigured()) {
       return res.json(getDevCareerResponse(skillList));
     }
 
-    const ai = getGeminiClient();
+    const ai = getMistralClient();
     if (!ai) {
       return res.status(503).json({
         message:
-          "Gemini API key is not configured. Set API_KEY_GEMINI in services/utils/.env",
+          "Mistral API key is not configured. Set API_KEY_MISTRAL in services/utils/.env",
       });
     }
 
@@ -162,7 +162,7 @@ Mastery', 'DevOps & Cloud').",
 } 
  `;
 
-    const response = await generateGeminiContent(ai, { contents: prompt });
+    const response = await generateMistralContent(ai, { contents: prompt });
 
     try {
       const jsonResponse = parseModelJson(response.text);
@@ -174,11 +174,11 @@ Mastery', 'DevOps & Cloud').",
       });
     }
   } catch (error: unknown) {
-    if (isGeminiQuotaError(error) || isGeminiModelNotFoundError(error)) {
+    if (isMistralQuotaError(error) || isMistralModelNotFoundError(error)) {
       return res.json(getDevCareerResponse(skillList));
     }
     res.status(500).json({
-      message: parseGeminiError(error),
+      message: parseMistralError(error),
     });
   }
 });
@@ -192,7 +192,7 @@ router.post("/resume-analyser", async (req, res) => {
 
   if (
     process.env.ATS_USE_LOCAL === "true" ||
-    !isGeminiConfigured()
+    !isMistralConfigured()
   ) {
     try {
       return res.json(await analyzeResumeFromPdf(pdfBase64));
@@ -203,11 +203,11 @@ router.post("/resume-analyser", async (req, res) => {
 
   try {
 
-    const ai = getGeminiClient();
+    const ai = getMistralClient();
     if (!ai) {
       return res.status(503).json({
         message:
-          "Gemini API key is not configured. Set API_KEY_GEMINI in services/utils/.env",
+          "Mistral API key is not configured. Set API_KEY_MISTRAL in services/utils/.env",
       });
     }
 
@@ -261,21 +261,8 @@ Focus on: - File format and structure compatibility - Proper use of standard sec
 
     const pdfData = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
 
-    const response = await generateGeminiContent(ai, {
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                mimeType: "application/pdf",
-                data: pdfData,
-              },
-            },
-          ],
-        },
-      ],
+    const response = await generateMistralContent(ai, {
+      contents: prompt,
     });
 
     try {
@@ -288,7 +275,7 @@ Focus on: - File format and structure compatibility - Proper use of standard sec
       });
     }
   } catch (error: unknown) {
-    if (isGeminiQuotaError(error) || isGeminiModelNotFoundError(error)) {
+    if (isMistralQuotaError(error) || isMistralModelNotFoundError(error)) {
       try {
         const localReport = await analyzeResumeFromPdf(pdfBase64);
         return res.json(localReport);
@@ -298,7 +285,7 @@ Focus on: - File format and structure compatibility - Proper use of standard sec
       }
     }
     res.status(500).json({
-      message: parseGeminiError(error),
+      message: parseMistralError(error),
     });
   }
 });

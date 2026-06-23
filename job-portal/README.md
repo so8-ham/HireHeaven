@@ -30,7 +30,7 @@
 - Browse and apply to active job listings
 - Track application status (Submitted, Rejected, Hired)
 - Manage skills on profile
-- **AI Career Guide** — skill-based career path suggestions (Google Gemini)
+- **AI Career Guide** — skill-based career path suggestions (Mistral)
 - **AI Resume Analyzer** — ATS-style resume scoring and feedback
 
 ### Recruiters
@@ -58,7 +58,7 @@ The application follows a **distributed microservices** pattern:
 | **User Service** | Profiles, skills, resume/picture updates, job applications |
 | **Job Service** | Companies, jobs, applications, recruiter workflows |
 | **Payment Service** | Razorpay orders and payment verification; updates user subscription |
-| **Utils Service** | File uploads, Gemini AI routes, Kafka mail consumer |
+| **Utils Service** | File uploads, Mistral AI routes, Kafka mail consumer |
 | **Infrastructure** | PostgreSQL (Neon), Redis, Kafka + Zookeeper (via Docker Compose) |
 
 Each service owns its Express API, shares **JWT** validation with a common `JWT_SEC`, and uses **Neon PostgreSQL** (`@neondatabase/serverless`) for persistence. Database tables are created automatically on service startup.
@@ -87,7 +87,7 @@ flowchart TB
         KAFKA["Kafka<br/>:9092"]
         ZK["Zookeeper"]
         CLOUD["Cloudinary"]
-        GEMINI["Google Gemini API"]
+        MISTRAL["Mistral API"]
         RAZOR["Razorpay API"]
         SMTP["SMTP (Gmail)"]
     end
@@ -114,7 +114,7 @@ flowchart TB
     UTIL --> SMTP
 
     UTIL --> CLOUD
-    UTIL --> GEMINI
+    UTIL --> MISTRAL
     PAY --> RAZOR
 
     KAFKA --> ZK
@@ -190,7 +190,7 @@ sequenceDiagram
 | Auth | JWT, bcrypt |
 | Payments | Razorpay |
 | Storage | Cloudinary (+ local upload fallback) |
-| AI | Google Gemini (`@google/genai`) |
+| AI | Mistral (`fetch` to Mistral API) |
 | Email | Nodemailer (SMTP) |
 | DevOps | Docker, Docker Compose |
 
@@ -226,7 +226,7 @@ Install the following before running the project locally:
 - **PostgreSQL** connection string ([Neon](https://neon.tech) or local Postgres)
 - Optional accounts:
   - [Cloudinary](https://cloudinary.com) — image/resume hosting
-  - [Google AI Studio](https://aistudio.google.com) — Gemini API key
+  - [Mistral](https://www.mistral.ai/) — Mistral API key
   - [Razorpay](https://razorpay.com) — payments (test keys work for dev)
   - Gmail app password — SMTP for password-reset emails
 
@@ -392,9 +392,10 @@ Frontend checkout also uses `NEXT_PUBLIC_RAZORPAY_KEY` (optional `.env.local` in
 | `Kafka_Broker` | e.g. `localhost:9092` |
 | `SMTP_USER` | Gmail address for outbound mail |
 | `SMTP_PASS` | Gmail app password |
-| `API_KEY_GEMINI` | Google Gemini API key |
-| `GEMINI_MODEL` | Optional comma-separated model list |
-| `ATS_USE_LOCAL` | Set `true` to use local ATS analysis without Gemini |
+| `API_KEY_MISTRAL` | Mistral API key |
+| `MISTRAL_MODEL` | Optional comma-separated model list |
+| `MISTRAL_BASE_URL` | Optional Mistral base URL (defaults to https://api.mistral.ai/v1) |
+| `ATS_USE_LOCAL` | Set `true` to use local ATS analysis without Mistral |
 
 ---
 
@@ -463,7 +464,7 @@ Frontend:
 | Kafka connection errors | `docker compose up -d`; `Kafka_Broker=localhost:9092` |
 | Redis errors on forgot-password | Redis container running on port 6379 |
 | Upload failures | Utils service up; Cloudinary credentials valid or local fallback active |
-| AI features return sample data | Set `API_KEY_GEMINI` or use `ATS_USE_LOCAL=true` |
+| AI features return sample data | Set `API_KEY_MISTRAL` or use `ATS_USE_LOCAL=true` |
 | Payment dev mode | Razorpay keys missing — service returns mock orders (see payment logs) |
 | JWT / 401 errors | Same `JWT_SEC` in auth, user, job, and payment `.env` files |
 | Emails not sent | Utils consumer running; SMTP credentials correct; Kafka topic `send-mail` |

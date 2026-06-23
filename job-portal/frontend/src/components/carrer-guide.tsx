@@ -154,6 +154,8 @@ const CarrerGuide = () => {
                             <span className="text-sm font-medium">{s}</span>
                             <button
                               onClick={() => removeSkill(s)}
+                              aria-label={`Remove ${s}`}
+                              title={`Remove ${s}`}
                               className="h-5 w-5 rounded-full bg-red-500 text-white flex in-checked: justify-center"
                             >
                               <X size={13} />

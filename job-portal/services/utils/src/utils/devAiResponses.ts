@@ -1,5 +1,5 @@
 export const getDevCareerResponse = (skills: string[]) => ({
-  summary: `Based on your skills (${skills.join(", ")}), you have a solid foundation for tech roles. This is sample guidance because Gemini is not configured yet.`,
+  summary: `Based on your skills (${skills.join(", ")}), you have a solid foundation for tech roles. This is sample guidance because Mistral is not configured yet.`,
   jobOptions: [
     {
       title: "Full Stack Developer",
@@ -42,9 +42,9 @@ export const getQuotaFallbackResumeResponse = () => ({
   devMode: true,
   quotaExceeded: true,
   notice:
-    "Gemini free-tier quota is used up for now. This is sample ATS guidance — wait ~1 minute and try again, or add billing / a new API key at https://aistudio.google.com/apikey.",
+    "Mistral quota is used up for now. This is sample ATS guidance — wait ~1 minute and try again, or add billing / a new API key.",
   summary:
-    "Sample ATS report (Gemini quota exceeded). Your PDF was received; configure billing or retry later for AI analysis of this specific resume.",
+    "Sample ATS report (Mistral quota exceeded). Your PDF was received; configure billing or retry later for AI analysis of this specific resume.",
 });
 
 export const getDevResumeResponse = () => ({
@@ -52,7 +52,7 @@ export const getDevResumeResponse = () => ({
   scoreBreakdown: {
     formatting: {
       score: 80,
-      feedback: "Layout is readable; sample analysis (configure Gemini for real results).",
+      feedback: "Layout is readable; sample analysis (configure Mistral for real results).",
     },
     keywords: {
       score: 75,
@@ -88,6 +88,6 @@ export const getDevResumeResponse = () => ({
     "Professional tone",
   ],
   summary:
-    "This is a demo ATS report. Add a valid Gemini API key in services/utils/.env for AI-powered resume analysis.",
+    "This is a demo ATS report. Add a valid Mistral API key in services/utils/.env for AI-powered resume analysis.",
   devMode: true,
 });
